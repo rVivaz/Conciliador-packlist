@@ -1,2 +1,538 @@
 # Conciliador-packlist
 Just to work
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conciliador Packlist vs Remessa</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SheetJS (xlsx) CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body { background-color: #f8fafc; font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+        .glass-card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
+        .tab-btn.active { border-bottom: 2px solid #2563eb; color: #2563eb; font-weight: 600; }
+    </style>
+</head>
+<body class="p-4 md:p-8 text-slate-800">
+
+    <div class="max-w-7xl mx-auto space-y-6">
+        
+        <!-- Header -->
+        <header class="glass-card p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-l-4 border-l-blue-600">
+            <div>
+                <h1 class="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                    <i data-lucide="file-check-2" class="text-blue-600"></i>
+                    Conciliador Packlist vs Remessa
+                </h1>
+                <p class="text-slate-500 text-sm mt-1">Tratamento automático de dados e comparação cruzada de Packlist vs Remessas SAP.</p>
+            </div>
+            <button onclick="resetApp()" class="px-4 py-2 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg flex items-center gap-2 transition">
+                <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Limpar Dados
+            </button>
+        </header>
+
+        <!-- Upload Section -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Packlist Upload -->
+            <div class="glass-card p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="font-semibold text-lg text-slate-800 flex items-center gap-2">
+                        <i data-lucide="package" class="text-blue-500"></i> 1. Planilha PACKLIST
+                    </h2>
+                    <span id="status-packlist" class="text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 font-medium">Aguardando arquivo</span>
+                </div>
+                <label class="border-2 border-dashed border-slate-300 hover:border-blue-500 bg-slate-50 hover:bg-blue-50/50 rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer transition text-center group">
+                    <i data-lucide="upload-cloud" class="w-10 h-10 text-slate-400 group-hover:text-blue-500 mb-2 transition"></i>
+                    <span class="text-sm font-medium text-slate-700">Clique para selecionar ou arraste o Packlist</span>
+                    <span class="text-xs text-slate-400 mt-1">Suporta arquivos .xls, .xlsx e .csv</span>
+                    <input type="file" id="file-packlist" accept=".xls,.xlsx,.csv" class="hidden" onchange="handleFile(this, 'packlist')">
+                </label>
+            </div>
+
+            <!-- Remessa Upload -->
+            <div class="glass-card p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="font-semibold text-lg text-slate-800 flex items-center gap-2">
+                        <i data-lucide="truck" class="text-emerald-500"></i> 2. Planilha REMESSA
+                    </h2>
+                    <span id="status-remessa" class="text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 font-medium">Aguardando arquivo</span>
+                </div>
+                <label class="border-2 border-dashed border-slate-300 hover:border-emerald-500 bg-slate-50 hover:bg-emerald-50/50 rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer transition text-center group">
+                    <i data-lucide="upload-cloud" class="w-10 h-10 text-slate-400 group-hover:text-emerald-500 mb-2 transition"></i>
+                    <span class="text-sm font-medium text-slate-700">Clique para selecionar ou arraste a Remessa</span>
+                    <span class="text-xs text-slate-400 mt-1">Suporta arquivos .xls, .xlsx e .csv</span>
+                    <input type="file" id="file-remessa" accept=".xls,.xlsx,.csv" class="hidden" onchange="handleFile(this, 'remessa')">
+                </label>
+            </div>
+        </div>
+
+        <!-- Dashboard / Results Section -->
+        <div id="results-container" class="hidden space-y-6">
+            
+            <!-- Summary KPI Cards -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="glass-card p-4 flex items-center gap-4">
+                    <div class="p-3 bg-blue-100 text-blue-600 rounded-lg"><i data-lucide="layers"></i></div>
+                    <div>
+                        <div class="text-xs text-slate-500 uppercase font-semibold">Total Cases</div>
+                        <div id="kpi-cases" class="text-2xl font-bold text-slate-900">0</div>
+                    </div>
+                </div>
+                <div class="glass-card p-4 flex items-center gap-4">
+                    <div class="p-3 bg-indigo-100 text-indigo-600 rounded-lg"><i data-lucide="barcode"></i></div>
+                    <div>
+                        <div class="text-xs text-slate-500 uppercase font-semibold">Cód. Distintos</div>
+                        <div id="kpi-codes" class="text-2xl font-bold text-slate-900">0</div>
+                    </div>
+                </div>
+                <div class="glass-card p-4 flex items-center gap-4">
+                    <div class="p-3 bg-emerald-100 text-emerald-600 rounded-lg"><i data-lucide="check-circle-2"></i></div>
+                    <div>
+                        <div class="text-xs text-slate-500 uppercase font-semibold">Itens Conformes</div>
+                        <div id="kpi-matches" class="text-2xl font-bold text-emerald-600">0</div>
+                    </div>
+                </div>
+                <div class="glass-card p-4 flex items-center gap-4">
+                    <div class="p-3 bg-rose-100 text-rose-600 rounded-lg"><i data-lucide="alert-triangle"></i></div>
+                    <div>
+                        <div class="text-xs text-slate-500 uppercase font-semibold">Divergências</div>
+                        <div id="kpi-diffs" class="text-2xl font-bold text-rose-600">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation Tabs -->
+            <div class="glass-card p-2 flex flex-wrap gap-2 border-b">
+                <button onclick="switchTab('tab-comp')" id="btn-tab-comp" class="tab-btn active px-4 py-2 text-sm rounded-lg flex items-center gap-2">
+                    <i data-lucide="scale" class="w-4 h-4"></i> Comparativo Geral
+                </button>
+                <button onclick="switchTab('tab-cases')" id="btn-tab-cases" class="tab-btn px-4 py-2 text-sm rounded-lg flex items-center gap-2">
+                    <i data-lucide="boxes" class="w-4 h-4"></i> Visão por CASE
+                </button>
+            </div>
+
+            <!-- TAB 1: Comparativo Geral -->
+            <div id="tab-comp" class="tab-content glass-card p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-900">Comparação Dinâmica de Totais</h3>
+                    </div>
+                </div>
+                
+                <div class="overflow-x-auto max-h-[600px] overflow-y-auto rounded-lg border border-slate-200">
+                    <table class="w-full text-sm text-center border-collapse">
+                        <thead class="sticky top-0 bg-slate-100 text-slate-700 font-semibold border-b border-slate-200 z-10">
+                            <tr>
+                                <th class="p-3 text-center bg-slate-100">Código Packlist</th>
+                                <th class="p-3 text-center bg-slate-100 border-r border-slate-200">Código Remessa</th>
+                                <th class="p-3 text-center bg-slate-100">Packlist Total</th>
+                                <th class="p-3 text-center bg-slate-100">Remessa Total</th>
+                                <th class="p-3 text-center bg-slate-100">Diferença</th>
+                                <th class="p-3 text-center bg-slate-100">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-comp" class="divide-y divide-slate-200"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- TAB 2: Visão por CASE -->
+            <div id="tab-cases" class="tab-content glass-card p-6 hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-900">Detalhamento Visual por CASE</h3>
+                    </div>
+                </div>
+                <div id="cases-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        let processedPacklist = [];
+        let processedRemessa = [];
+
+        const COLOR_PALETTE = [
+            { bg: 'bg-emerald-50', border: 'border-emerald-500', headerBg: 'bg-emerald-100', text: 'text-emerald-800', badge: 'bg-emerald-200 text-emerald-800' },
+            { bg: 'bg-purple-50', border: 'border-purple-500', headerBg: 'bg-purple-100', text: 'text-purple-800', badge: 'bg-purple-200 text-purple-800' },
+            { bg: 'bg-amber-50', border: 'border-amber-500', headerBg: 'bg-amber-100', text: 'text-amber-800', badge: 'bg-amber-200 text-amber-800' },
+            { bg: 'bg-sky-50', border: 'border-sky-500', headerBg: 'bg-sky-100', text: 'text-sky-800', badge: 'bg-sky-200 text-sky-800' }
+        ];
+
+        // Leitor Absoluto de Quantidades Inteiras de Embalamento
+        function parseNumber(val) {
+            if (val === null || val === undefined || val === '') return 0;
+
+            let str = String(val).trim().replace(/\s+/g, '');
+            if (!str) return 0;
+
+            // Remove todos os caracteres não numéricos (pontos, vírgulas, espaços)
+            // Em listas de peças/caixas, as quantidades físicas são sempre números inteiros
+            let digitsOnly = str.replace(/[^\d]/g, '');
+            if (!digitsOnly) return 0;
+
+            return parseInt(digitsOnly, 10);
+        }
+
+        function sortCodes(a, b) {
+            let strA = String(a).trim();
+            let strB = String(b).trim();
+            return strA.localeCompare(strB, 'pt-BR', { sensitivity: 'base' });
+        }
+
+        function handleFile(input, type) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array', raw: false });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "", raw: false });
+
+                if (type === 'packlist') {
+                    processPacklist(jsonData);
+                    document.getElementById('status-packlist').innerText = file.name;
+                    document.getElementById('status-packlist').className = "text-xs px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 font-medium";
+                } else {
+                    processRemessa(jsonData);
+                    document.getElementById('status-remessa').innerText = file.name;
+                    document.getElementById('status-remessa').className = "text-xs px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 font-medium";
+                }
+
+                checkAndRunComparison();
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function processPacklist(data) {
+            processedPacklist = data.map((row, index) => {
+                let caseKey = Object.keys(row).find(k => k.trim().toUpperCase() === 'CASE') || 'CASE';
+                let partKey = Object.keys(row).find(k => k.trim().toUpperCase() === 'PART') || 'PART';
+                let qtyKey = Object.keys(row).find(k => k.trim().toUpperCase() === 'QTY' || k.trim().toUpperCase() === 'QUANTIDADE') || 'QTY';
+
+                let rawCase = String(row[caseKey] || '');
+                let rawPart = String(row[partKey] || '');
+                let rawQty = row[qtyKey];
+
+                let cleanCase = rawCase.replace(/[EFef]/g, '').trim();
+                let cleanPart = rawPart.trim();
+                let cleanQty = parseNumber(rawQty);
+
+                // --- INÍCIO DA CORREÇÃO ---
+                // Se a quantidade limpa terminar com três zeros (ex: 200010000), removemos os 3 últimos zeros.
+                let strQty = String(cleanQty);
+                if (strQty.endsWith('000')) {
+                    cleanQty = parseInt(strQty.slice(0, -3), 10) || 0;
+                }
+                // --- FIM DA CORREÇÃO ---
+
+                return { id: 'item_' + index, CASE: cleanCase, PART: cleanPart, QTY: cleanQty };
+            }).filter(item => {
+                const isValidData = item.CASE || item.PART || item.QTY;
+                const isHeaderCase = item.CASE.toUpperCase() === 'CAS' || item.CASE.toUpperCase() === 'CASE';
+                const isHeaderPart = item.PART.toUpperCase() === 'PART';
+
+                return isValidData && !isHeaderCase && !isHeaderPart;
+            });
+        }
+
+        function processRemessa(data) {
+            processedRemessa = data.map(row => {
+                let prodKey = Object.keys(row).find(k => k.trim().toUpperCase() === 'PRODUTO' || k.trim().toUpperCase() === 'PART') || 'Produto';
+                let qtyKey = Object.keys(row).find(k => k.trim().toUpperCase() === 'QUANTIDADE' || k.trim().toUpperCase() === 'QTY') || 'Quantidade';
+
+                let rawProd = String(row[prodKey] || '');
+                let rawQty = row[qtyKey];
+
+                let cleanProd = rawProd.trim();
+                let cleanQty = parseNumber(rawQty);
+
+                return { Produto: cleanProd, Quantidade: cleanQty };
+            }).filter(item => {
+                const isValidData = item.Produto || item.Quantidade;
+                const isHeaderProd = item.Produto.toUpperCase() === 'PRODUTO' || item.Produto.toUpperCase() === 'PART';
+                return isValidData && !isHeaderProd;
+            });
+        }
+
+        function checkAndRunComparison() {
+            if (processedPacklist.length > 0 || processedRemessa.length > 0) {
+                document.getElementById('results-container').classList.remove('hidden');
+                renderComparison();
+                renderCaseBreakdown();
+            }
+        }
+
+        function renderComparison() {
+            let packlistTotals = {};
+            processedPacklist.forEach(item => {
+                if (!item.PART) return;
+                packlistTotals[item.PART] = (packlistTotals[item.PART] || 0) + item.QTY;
+            });
+
+            let remessaTotals = {};
+            processedRemessa.forEach(item => {
+                if (!item.Produto) return;
+                remessaTotals[item.Produto] = (remessaTotals[item.Produto] || 0) + item.Quantidade;
+            });
+
+            let allCodes = Array.from(new Set([...Object.keys(packlistTotals), ...Object.keys(remessaTotals)])).sort(sortCodes);
+
+            let matchesCount = 0;
+            let diffsCount = 0;
+
+            const tbodyComp = document.getElementById('tbody-comp');
+            tbodyComp.innerHTML = allCodes.map(code => {
+                let packQty = packlistTotals[code] || 0;
+                let remQty = remessaTotals[code] || 0;
+                
+                let packCodeDisplay = (code in packlistTotals) ? code : '<span class="text-slate-300">-</span>';
+                let remCodeDisplay = (code in remessaTotals) ? code : '<span class="text-slate-300">-</span>';
+                
+                let diff = packQty - remQty;
+                let isMatch = (diff === 0) && (packQty > 0 || remQty > 0);
+
+                if (isMatch) matchesCount++;
+                else diffsCount++;
+
+                let statusBadge = isMatch 
+                    ? `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800"><i data-lucide="check" class="w-3 h-3"></i> Exato</span>`
+                    : `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-100 text-rose-800"><i data-lucide="alert-circle" class="w-3 h-3"></i> Divergente</span>`;
+
+                return `
+                    <tr class="hover:bg-slate-50">
+                        <td class="p-3 text-center font-mono font-bold text-blue-700">${packCodeDisplay}</td>
+                        <td class="p-3 text-center font-mono font-bold text-emerald-700 border-r border-slate-200">${remCodeDisplay}</td>
+                        <td class="p-3 text-center font-medium">${packQty.toLocaleString('pt-BR')}</td>
+                        <td class="p-3 text-center font-medium">${remQty.toLocaleString('pt-BR')}</td>
+                        <td class="p-3 text-center font-bold ${!isMatch ? 'text-rose-600' : 'text-slate-400'}">${isMatch ? '0' : (diff > 0 ? '+' + diff.toLocaleString('pt-BR') : diff.toLocaleString('pt-BR'))}</td>
+                        <td class="p-3 text-center">${statusBadge}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            const totalCases = new Set(processedPacklist.map(i => i.CASE).filter(Boolean)).size;
+            document.getElementById('kpi-cases').innerText = totalCases;
+            document.getElementById('kpi-codes').innerText = allCodes.length;
+            document.getElementById('kpi-matches').innerText = matchesCount;
+            document.getElementById('kpi-diffs').innerText = diffsCount;
+
+            lucide.createIcons();
+        }
+
+        function getConsolidatedCaseItems(caseNum) {
+            let caseItems = processedPacklist.filter(item => (item.CASE || 'Sem CASE') === String(caseNum));
+            let totalsMap = {};
+            
+            caseItems.forEach(item => {
+                if (!item.PART) return;
+                totalsMap[item.PART] = (totalsMap[item.PART] || 0) + item.QTY;
+            });
+
+            let consolidated = Object.keys(totalsMap).map(part => ({
+                PART: part,
+                QTY: totalsMap[part]
+            }));
+
+            consolidated.sort((a, b) => sortCodes(a.PART, b.PART));
+
+            return consolidated;
+        }
+
+        function enableEditPart(element, itemId, currentPart) {
+            const container = element.parentElement;
+            container.innerHTML = `
+                <div class="flex items-center gap-1 w-full">
+                    <input type="text" id="input-${itemId}" value="${currentPart}" 
+                           class="w-full text-xs font-mono px-2 py-1 bg-white border border-amber-400 rounded focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-inner"
+                           onblur="saveEditedPart('${itemId}', this.value)"
+                           onkeydown="if(event.key === 'Enter') { this.blur(); }">
+                </div>
+            `;
+            const inputEl = document.getElementById(`input-${itemId}`);
+            inputEl.focus();
+            inputEl.setSelectionRange(inputEl.value.length, inputEl.value.length);
+        }
+
+        function saveEditedPart(itemId, newValue) {
+            let cleanNewVal = newValue.trim();
+            
+            processedPacklist.forEach(item => {
+                if (item.id === itemId) {
+                    item.PART = cleanNewVal;
+                }
+            });
+
+            renderComparison();
+            renderCaseBreakdown();
+        }
+
+        function copyCaseData(btn, caseNum, type) {
+            const isCopied = btn.dataset.copied === 'true';
+            const statusSpan = btn.querySelector('.status-txt');
+
+            if (isCopied) {
+                btn.dataset.copied = 'false';
+                if (statusSpan) statusSpan.innerText = 'COPIAR';
+                btn.classList.remove('bg-emerald-600', 'text-white', 'border-emerald-600');
+                btn.classList.add('bg-slate-100', 'hover:bg-slate-200', 'text-slate-700', 'border-slate-300');
+                return;
+            }
+
+            let items = getConsolidatedCaseItems(caseNum);
+            let textToCopy = '';
+
+            if (type === 'codes') {
+                textToCopy = items.map(i => i.PART).join('\n');
+            } else if (type === 'qty') {
+                textToCopy = items.map(i => i.QTY).join('\n');
+            }
+
+            if (!textToCopy) return;
+
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                if (statusSpan) {
+                    btn.dataset.copied = 'true';
+                    statusSpan.innerText = 'COPIADO';
+                    btn.classList.add('bg-emerald-600', 'text-white', 'border-emerald-600');
+                    btn.classList.remove('bg-slate-100', 'hover:bg-slate-200', 'text-slate-700', 'border-slate-300');
+                }
+            }).catch(err => {
+                console.error('Erro ao copiar dados: ', err);
+            });
+        }
+
+        function renderCaseBreakdown() {
+            let caseGroups = {};
+            processedPacklist.forEach(item => {
+                let c = item.CASE || 'Sem CASE';
+                if (!caseGroups[c]) caseGroups[c] = [];
+                caseGroups[c].push(item);
+            });
+
+            let caseSignatures = {};
+            let signatureCounts = {};
+
+            Object.keys(caseGroups).forEach(caseNum => {
+                let consolidatedItems = getConsolidatedCaseItems(caseNum);
+                let signature = consolidatedItems.map(i => `${i.PART}:${i.QTY}`).join('|');
+                
+                caseSignatures[caseNum] = signature;
+                signatureCounts[signature] = (signatureCounts[signature] || 0) + 1;
+            });
+
+            let signatureColors = {};
+            let colorIndex = 0;
+
+            Object.keys(signatureCounts).forEach(sig => {
+                if (signatureCounts[sig] > 1) {
+                    signatureColors[sig] = COLOR_PALETTE[colorIndex % COLOR_PALETTE.length];
+                    colorIndex++;
+                }
+            });
+
+            const grid = document.getElementById('cases-grid');
+            grid.innerHTML = Object.keys(caseGroups).sort(sortCodes).map(caseNum => {
+                let rawCaseItems = processedPacklist.filter(item => (item.CASE || 'Sem CASE') === String(caseNum));
+                let items = getConsolidatedCaseItems(caseNum);
+                let totalQtyCase = items.reduce((sum, i) => sum + i.QTY, 0);
+                let signature = caseSignatures[caseNum];
+                let colorTheme = signatureColors[signature];
+
+                let itemsList = items.map(i => {
+                    let matchOriginal = rawCaseItems.find(r => r.PART === i.PART);
+                    let targetId = matchOriginal ? matchOriginal.id : (rawCaseItems[0] ? rawCaseItems[0].id : '');
+
+                    return `
+                        <div class="flex justify-between items-center text-xs py-1 border-b border-slate-100 last:border-0 group">
+                            <span class="font-mono text-slate-700 font-medium cursor-pointer hover:text-blue-600 flex items-center gap-1" title="Clique para editar" onclick="enableEditPart(this, '${targetId}', '${i.PART}')">
+                                <i data-lucide="edit-3" class="w-3 h-3 text-slate-400 group-hover:text-blue-500"></i> ${i.PART}
+                            </span>
+                            <span class="font-semibold text-slate-900">${i.QTY.toLocaleString('pt-BR')} un</span>
+                        </div>
+                    `;
+                }).join('');
+
+                let cardClasses = "bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:shadow-md transition";
+                let headerClasses = "flex justify-between items-center mb-2 pb-2 border-b border-slate-200";
+                let titleClasses = "font-bold text-blue-600 text-base";
+                let badgeClasses = "text-xs bg-blue-50 text-blue-700 font-bold px-2.5 py-1 rounded-md";
+                let groupLabel = "";
+
+                if (colorTheme) {
+                    cardClasses = `${colorTheme.bg} border-2 ${colorTheme.border} rounded-xl p-4 shadow-sm hover:shadow-md transition`;
+                    headerClasses = `flex justify-between items-center mb-2 pb-2 border-b ${colorTheme.border}`;
+                    titleClasses = `font-bold ${colorTheme.text} text-base flex items-center gap-1.5`;
+                    badgeClasses = `text-xs ${colorTheme.badge} font-bold px-2.5 py-1 rounded-md`;
+                    groupLabel = `<span class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded ${colorTheme.headerBg} ${colorTheme.text}">Conteúdo Idêntico</span>`;
+                }
+
+                let copyButtonsHtml = `
+                    <div class="flex items-center gap-2 my-2 py-1.5 border-y border-slate-200/70 text-xs">
+                        <button onclick="copyCaseData(this, '${caseNum}', 'codes')" data-copied="false"
+                                class="flex-1 py-1 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded border border-slate-300 transition text-[11px] flex items-center justify-center gap-1">
+                            <i data-lucide="copy" class="w-3 h-3"></i> Cód: <span class="status-txt font-bold">COPIAR</span>
+                        </button>
+                        <button onclick="copyCaseData(this, '${caseNum}', 'qty')" data-copied="false"
+                                class="flex-1 py-1 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded border border-slate-300 transition text-[11px] flex items-center justify-center gap-1">
+                            <i data-lucide="copy" class="w-3 h-3"></i> QTY: <span class="status-txt font-bold">COPIAR</span>
+                        </button>
+                    </div>
+                `;
+
+                return `
+                    <div class="${cardClasses}">
+                        <div class="${headerClasses}">
+                            <div>
+                                <span class="${titleClasses}">CASE ${caseNum}</span>
+                                ${groupLabel ? `<div class="mt-1">${groupLabel}</div>` : ''}
+                            </div>
+                            <span class="${badgeClasses}">Total: ${totalQtyCase.toLocaleString('pt-BR')}</span>
+                        </div>
+                        ${copyButtonsHtml}
+                        <div class="space-y-1 max-h-40 overflow-y-auto pr-1">
+                            ${itemsList}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+
+            document.getElementById(tabId).classList.remove('hidden');
+            document.getElementById('btn-' + tabId).classList.add('active');
+        }
+
+        function resetApp() {
+            processedPacklist = [];
+            processedRemessa = [];
+            
+            document.getElementById('file-packlist').value = "";
+            document.getElementById('file-remessa').value = "";
+            
+            document.getElementById('status-packlist').innerText = "Aguardando arquivo";
+            document.getElementById('status-packlist').className = "text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 font-medium";
+            
+            document.getElementById('status-remessa').innerText = "Aguardando arquivo";
+            document.getElementById('status-remessa').className = "text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 font-medium";
+            
+            document.getElementById('results-container').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
